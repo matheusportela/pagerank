@@ -1,9 +1,11 @@
+import queue
 import networkx as nx
+
+channels = {}
 
 class Graph:
     def __init__(self):
         self.graph = nx.DiGraph()
-        self.channel = {}
 
     def __repr__(self):
         return str(self.graph.edges)
@@ -21,11 +23,15 @@ class Graph:
             for node in self.graph.nodes:
                 self.graph = self.calculate_pagerank_step(node, m)
 
+        return {n: data['x'] for n, data in self.graph.nodes.data()}
+
     def initialize_pagerank(self, m):
         n = len(self.graph.nodes)
         initial_value = m/n
 
         for node in self.graph.nodes:
+            channels[node] = queue.Queue()
+
             self.graph.nodes[node]['x'] = initial_value
             self.graph.nodes[node]['z'] = initial_value
 
@@ -39,27 +45,20 @@ class Graph:
         graph.add_nodes_from(self.graph.nodes.data())
         graph.add_edges_from(self.graph.edges.data())
 
-        print(f'Incoming channel for node {node}:')
-        print(self.channel)
-
-        if node not in self.channel:
-            self.channel[node] = []
-
         for dst in self.graph.neighbors(node):
             # Send current state
             x = self.graph.nodes[node]['x']
             z = self.graph.nodes[node]['z']
 
-            if dst not in self.channel:
-                self.channel[dst] = []
-            self.channel[dst].append((node, z))
+            channels[dst].put((node, z))
 
         # Update received state
         x = self.graph.nodes[node]['x']
         z = 0
 
         # Update state
-        for src, zj in self.channel[node]:
+        while not channels[node].empty():
+            src, zj = channels[node].get()
             nj = len(self.graph.edges(src))
             x += ((1 - m)/nj)*zj
             z += ((1 - m)/nj)*zj
@@ -67,19 +66,13 @@ class Graph:
         graph.nodes[node]['x'] = x
         graph.nodes[node]['z'] = z
 
-        self.channel[node] = []
-
-        print(f'Outgoing channel for node {node}:')
-        print(self.channel)
-
         return graph
 
 
 def main():
     graph = Graph()
     graph.load('graph.txt')
-    graph.calculate_pagerank()
-    print(graph.graph.nodes.data())
+    print(graph.calculate_pagerank())
     print(nx.pagerank(graph.graph, alpha=0.85))
 
 if __name__ == '__main__':
