@@ -15,10 +15,11 @@ class Graph:
         return str(self.graph.edges)
 
     def load(self, filename):
-        with open(filename) as f:
-            for line in f:
-                source_node, destination_node = eval(line)
-                self.graph.add_edge(source_node, destination_node)
+        self.graph = nx.read_edgelist(filename)
+        # with open(filename) as f:
+        #     for line in f:
+        #         source_node, destination_node = eval(line)
+        #         self.graph.add_edge(source_node, destination_node)
 
     def calculate_pagerank(self, m=0.15):
         start_channels = {n: queue.Queue() for n in self.graph.nodes}

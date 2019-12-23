@@ -1,7 +1,8 @@
 import queue
-import networkx as nx
+import threading
+import time
 
-channels = {}
+import networkx as nx
 
 class Graph:
     def __init__(self):
@@ -11,62 +12,74 @@ class Graph:
         return str(self.graph.edges)
 
     def load(self, filename):
-        with open(filename) as f:
-            for line in f:
-                source_node, destination_node = eval(line)
-                self.graph.add_edge(source_node, destination_node)
+        self.graph = nx.read_edgelist(filename)
 
     def calculate_pagerank(self, m=0.15):
-        self.initialize_pagerank(m)
-
-        for _ in range(1000):
-            for node in self.graph.nodes:
-                self.graph = self.calculate_pagerank_step(node, m)
-
-        return {n: data['x'] for n, data in self.graph.nodes.data()}
-
-    def initialize_pagerank(self, m):
-        n = len(self.graph.nodes)
-        initial_value = m/n
+        start_channels = {n: queue.Queue() for n in self.graph.nodes}
+        end_channels = {n: queue.Queue() for n in self.graph.nodes}
+        data_channels = {n: queue.Queue() for n in self.graph.nodes}
+        nodes = []
 
         for node in self.graph.nodes:
-            channels[node] = queue.Queue()
+            node = Node(
+                node_id=node,
+                neighbors=list(self.graph.neighbors(node)),
+                num_nodes=len(self.graph.nodes),
+                m=m,
+                start_channels=start_channels,
+                end_channels=end_channels,
+                data_channels=data_channels,
+            )
+            node.start()
+            nodes.append(node)
 
-            self.graph.nodes[node]['x'] = initial_value
-            self.graph.nodes[node]['z'] = initial_value
+        for _ in range(100):
+            for node in self.graph.nodes:
+                start_channels[node].put(None)
+                end_channels[node].get()
 
-            num_edges = len(self.graph.adj[node])
-            edge_weight = 1/num_edges
-            for dst in self.graph.adj[node]:
-                self.graph.edges[node, dst]['weight'] = edge_weight
+        return {node.id: node.x for node in nodes}
 
-    def calculate_pagerank_step(self, node, m):
-        graph = nx.DiGraph()
-        graph.add_nodes_from(self.graph.nodes.data())
-        graph.add_edges_from(self.graph.edges.data())
 
-        for dst in self.graph.neighbors(node):
-            # Send current state
-            x = self.graph.nodes[node]['x']
-            z = self.graph.nodes[node]['z']
+class Node(threading.Thread):
+    def __init__(self, node_id, neighbors, num_nodes, m, start_channels, end_channels, data_channels):
+        super().__init__(daemon=True)
+        self.id = node_id
+        self.neighbors = neighbors
+        self.m = m
+        self.n = len(self.neighbors)
+        self.x = self.m/num_nodes
+        self.z = self.m/num_nodes
+        self.start_channels = start_channels
+        self.end_channels = end_channels
+        self.data_channels = data_channels
 
-            channels[dst].put((node, z))
+    def run(self):
+        while True:
+            self.start_channels[self.id].get()
+            self.run_pagerank_step()
+            self.end_channels[self.id].put(None)
 
-        # Update received state
-        x = self.graph.nodes[node]['x']
+    def run_pagerank_step(self):
+        self.send_data()
+        self.update_pagerank()
+
+    def send_data(self):
+        for dst in self.neighbors:
+            self.data_channels[dst].put((self.id, self.n, self.z))
+
+    def update_pagerank(self):
+        x = self.x
         z = 0
 
-        # Update state
-        while not channels[node].empty():
-            src, zj = channels[node].get()
-            nj = len(self.graph.edges(src))
-            x += ((1 - m)/nj)*zj
-            z += ((1 - m)/nj)*zj
+        while not self.data_channels[self.id].empty():
+            src, nj, zj = self.data_channels[self.id].get()
+            x += ((1 - self.m)/nj)*zj
+            z += ((1 - self.m)/nj)*zj
 
-        graph.nodes[node]['x'] = x
-        graph.nodes[node]['z'] = z
+        self.x = x
+        self.z = z
 
-        return graph
 
 
 def main():
