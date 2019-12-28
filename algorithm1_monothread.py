@@ -11,7 +11,7 @@ class Graph:
         return str(self.graph.edges)
 
     def load(self, filename):
-        self.graph = nx.read_edgelist(filename)
+        self.graph = nx.read_edgelist(filename, create_using=nx.DiGraph)
 
     def calculate_pagerank(self, m=0.15):
         self.initialize_pagerank(m)

@@ -15,11 +15,8 @@ class Graph:
         return str(self.graph.edges)
 
     def load(self, filename):
-        self.graph = nx.read_edgelist(filename)
-        # with open(filename) as f:
-        #     for line in f:
-        #         source_node, destination_node = eval(line)
-        #         self.graph.add_edge(source_node, destination_node)
+        self.graph = nx.read_edgelist(filename, create_using=nx.DiGraph)
+        # self.graph = nx.karate_club_graph()
 
     def calculate_pagerank(self, m=0.15):
         start_channels = {n: queue.Queue() for n in self.graph.nodes}
@@ -87,8 +84,8 @@ class Node(threading.Thread):
             self.data_channels[dst].put((self.id, self.n, self.z))
 
     def update_pagerank(self, selected_node):
-        x = self.x
-        z = 0
+        # x = self.x
+        # z = 0
 
         if self.id == selected_node:
             self.z = 0
@@ -104,6 +101,7 @@ class Node(threading.Thread):
 def main():
     graph = Graph()
     graph.load('graph.txt')
+    # graph.load('web-Google.txt')
     print(graph.calculate_pagerank())
     print(nx.pagerank(graph.graph, alpha=0.85))
 

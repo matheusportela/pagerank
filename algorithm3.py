@@ -15,7 +15,8 @@ class Graph:
         return str(self.graph.edges)
 
     def load(self, filename):
-        self.graph = nx.read_edgelist(filename)
+        self.graph = nx.read_edgelist(filename, create_using=nx.DiGraph)
+        # self.graph = nx.les_miserables_graph()
 
     def calculate_pagerank(self, m=0.15):
         start_channels = {n: queue.Queue() for n in self.graph.nodes}
